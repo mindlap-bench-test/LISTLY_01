@@ -62,3 +62,19 @@ export function updateTask(taskId, values) {
 export function deleteTask(taskId) {
   return request(`/tasks/${taskId}`, { method: "DELETE" });
 }
+
+export function fetchTags() {
+  return request("/tags");
+}
+
+export function createTag(name) {
+  return request("/tags", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function deleteTag(tagId) {
+  return request(`/tags/${tagId}`, { method: "DELETE" });
+}

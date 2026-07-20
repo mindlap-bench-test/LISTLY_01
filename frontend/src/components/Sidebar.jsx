@@ -1,7 +1,17 @@
 import { useState } from "react";
 import { createList, deleteList, renameList } from "../api.js";
+import TagManager from "./TagManager.jsx";
 
-export default function Sidebar({ lists, error, selectedListId, onSelectList, onListsChanged }) {
+export default function Sidebar({
+  lists,
+  error,
+  selectedListId,
+  onSelectList,
+  onListsChanged,
+  tags,
+  tagsError,
+  onTagsChanged,
+}) {
   const [newListName, setNewListName] = useState("");
   const [editingListId, setEditingListId] = useState(null);
   const [editingName, setEditingName] = useState("");
@@ -132,6 +142,7 @@ export default function Sidebar({ lists, error, selectedListId, onSelectList, on
         />
         <button type="submit">Add list</button>
       </form>
+      <TagManager tags={tags} error={tagsError} onTagsChanged={onTagsChanged} />
     </aside>
   );
 }

@@ -149,3 +149,121 @@ def test_get_tasks_without_list_id_returns_all(db_path):
 
     tasks = main.get_tasks(list_id=None)
     assert len(tasks) == 2
+
+
+def test_task_responses_include_empty_tags_by_default(db_path):
+    inbox_id = _inbox_id()
+    task = main.create_task(main.TaskCreate(list_id=inbox_id, title="Buy milk"))
+    assert task["tags"] == []
+
+
+def test_create_tag(db_path):
+    tag = main.create_tag(main.TagCreate(name="urgent"))
+    assert tag["name"] == "urgent"
+    assert main.get_tags() == [tag]
+
+
+def test_create_duplicate_tag_rejected(db_path):
+    main.create_tag(main.TagCreate(name="urgent"))
+    with pytest.raises(HTTPException) as exc_info:
+        main.create_tag(main.TagCreate(name="urgent"))
+    assert exc_info.value.status_code == 409
+
+
+def test_delete_tag(db_path):
+    tag = main.create_tag(main.TagCreate(name="urgent"))
+    main.delete_tag(tag["id"])
+    assert main.get_tags() == []
+
+
+def test_delete_missing_tag_raises_404(db_path):
+    with pytest.raises(HTTPException) as exc_info:
+        main.delete_tag(999)
+    assert exc_info.value.status_code == 404
+
+
+def test_attach_tags_to_task(db_path):
+    inbox_id = _inbox_id()
+    task = main.create_task(main.TaskCreate(list_id=inbox_id, title="Buy milk"))
+    urgent = main.create_tag(main.TagCreate(name="urgent"))
+    errand = main.create_tag(main.TagCreate(name="errand"))
+
+    updated = main.update_task(task["id"], main.TaskUpdate(tags=[urgent["id"], errand["id"]]))
+
+    assert [t["name"] for t in updated["tags"]] == ["errand", "urgent"]
+
+
+def test_attach_unknown_tag_raises_404(db_path):
+    inbox_id = _inbox_id()
+    task = main.create_task(main.TaskCreate(list_id=inbox_id, title="Buy milk"))
+    with pytest.raises(HTTPException) as exc_info:
+        main.update_task(task["id"], main.TaskUpdate(tags=[999]))
+    assert exc_info.value.status_code == 404
+
+
+def test_replacing_tags_detaches_omitted_ones(db_path):
+    inbox_id = _inbox_id()
+    task = main.create_task(main.TaskCreate(list_id=inbox_id, title="Buy milk"))
+    urgent = main.create_tag(main.TagCreate(name="urgent"))
+    errand = main.create_tag(main.TagCreate(name="errand"))
+    main.update_task(task["id"], main.TaskUpdate(tags=[urgent["id"], errand["id"]]))
+
+    updated = main.update_task(task["id"], main.TaskUpdate(tags=[errand["id"]]))
+
+    assert [t["name"] for t in updated["tags"]] == ["errand"]
+
+
+def test_clearing_tags_with_empty_list(db_path):
+    inbox_id = _inbox_id()
+    task = main.create_task(main.TaskCreate(list_id=inbox_id, title="Buy milk"))
+    urgent = main.create_tag(main.TagCreate(name="urgent"))
+    main.update_task(task["id"], main.TaskUpdate(tags=[urgent["id"]]))
+
+    updated = main.update_task(task["id"], main.TaskUpdate(tags=[]))
+
+    assert updated["tags"] == []
+
+
+def test_deleting_tag_detaches_it_from_every_task(db_path):
+    inbox_id = _inbox_id()
+    other_list = main.create_list(main.ListCreate(name="Work"))
+    task1 = main.create_task(main.TaskCreate(list_id=inbox_id, title="A"))
+    task2 = main.create_task(main.TaskCreate(list_id=other_list["id"], title="B"))
+    urgent = main.create_tag(main.TagCreate(name="urgent"))
+    main.update_task(task1["id"], main.TaskUpdate(tags=[urgent["id"]]))
+    main.update_task(task2["id"], main.TaskUpdate(tags=[urgent["id"]]))
+
+    main.delete_tag(urgent["id"])
+
+    assert main.get_task(task1["id"])["tags"] == []
+    assert main.get_task(task2["id"])["tags"] == []
+
+
+def test_delete_task_cleans_up_task_tags(db_path):
+    inbox_id = _inbox_id()
+    task = main.create_task(main.TaskCreate(list_id=inbox_id, title="Buy milk"))
+    urgent = main.create_tag(main.TagCreate(name="urgent"))
+    main.update_task(task["id"], main.TaskUpdate(tags=[urgent["id"]]))
+
+    main.delete_task(task["id"])
+
+    conn = database.get_connection()
+    try:
+        remaining = conn.execute(
+            "SELECT COUNT(*) FROM task_tags WHERE task_id = ?", (task["id"],)
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    assert remaining == 0
+
+
+def test_update_task_fields_without_touching_tags(db_path):
+    inbox_id = _inbox_id()
+    task = main.create_task(main.TaskCreate(list_id=inbox_id, title="Buy milk"))
+    urgent = main.create_tag(main.TagCreate(name="urgent"))
+    main.update_task(task["id"], main.TaskUpdate(tags=[urgent["id"]]))
+
+    updated = main.update_task(task["id"], main.TaskUpdate(done=True))
+
+    assert updated["done"] == 1
+    assert [t["name"] for t in updated["tags"]] == ["urgent"]
