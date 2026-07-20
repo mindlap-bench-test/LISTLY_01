@@ -1,12 +1,12 @@
 """FastAPI app for Listly.
 
-Full Lists and Tasks CRUD per PRD section 6. Tags and search/filter/sort are
-out of scope for this story.
+Full Lists and Tasks CRUD, plus Tag CRUD and task/tag attachment, per PRD
+section 6. Search/filter/sort are out of scope for this story.
 """
 
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -54,6 +54,11 @@ class TaskUpdate(BaseModel):
     priority: Optional[Literal["low", "medium", "high"]] = None
     done: Optional[bool] = None
     list_id: Optional[int] = None
+    tags: Optional[List[int]] = None
+
+
+class TagCreate(BaseModel):
+    name: str = Field(..., min_length=1)
 
 
 # Fields on Task that are NOT NULL in the schema; explicitly clearing them
@@ -93,6 +98,33 @@ def _get_task_or_404(conn, task_id: int):
     if row is None:
         raise HTTPException(status_code=404, detail="Task not found")
     return row
+
+
+def _get_tag_or_404(conn, tag_id: int):
+    row = conn.execute("SELECT id, name FROM tags WHERE id = ?", (tag_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    return row
+
+
+def _tags_for_task(conn, task_id: int):
+    rows = conn.execute(
+        """
+        SELECT t.id, t.name
+        FROM tags t
+        JOIN task_tags tt ON tt.tag_id = t.id
+        WHERE tt.task_id = ?
+        ORDER BY t.name ASC
+        """,
+        (task_id,),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def _serialize_task(conn, row) -> dict:
+    task = dict(row)
+    task["tags"] = _tags_for_task(conn, task["id"])
+    return task
 
 
 @app.get("/lists")
@@ -179,7 +211,7 @@ def get_tasks(list_id: Optional[int] = None):
             rows = conn.execute(
                 "SELECT * FROM tasks ORDER BY done ASC, created_at ASC, id ASC"
             ).fetchall()
-        return [dict(row) for row in rows]
+        return [_serialize_task(conn, row) for row in rows]
     finally:
         conn.close()
 
@@ -188,7 +220,7 @@ def get_tasks(list_id: Optional[int] = None):
 def get_task(task_id: int):
     conn = get_connection()
     try:
-        return dict(_get_task_or_404(conn, task_id))
+        return _serialize_task(conn, _get_task_or_404(conn, task_id))
     finally:
         conn.close()
 
@@ -216,7 +248,7 @@ def create_task(payload: TaskCreate):
             ),
         )
         conn.commit()
-        return dict(_get_task_or_404(conn, cursor.lastrowid))
+        return _serialize_task(conn, _get_task_or_404(conn, cursor.lastrowid))
     finally:
         conn.close()
 
@@ -228,26 +260,40 @@ def update_task(task_id: int, payload: TaskUpdate):
         _get_task_or_404(conn, task_id)
         updates = payload.model_dump(exclude_unset=True)
 
+        tags_provided = "tags" in updates
+        tag_ids = updates.pop("tags", None) or [] if tags_provided else None
+
         for field in _REQUIRED_TASK_FIELDS:
             if field in updates and updates[field] is None:
                 raise HTTPException(status_code=400, detail=f"{field} cannot be null")
 
-        if not updates:
-            return dict(_get_task_or_404(conn, task_id))
+        if not updates and not tags_provided:
+            return _serialize_task(conn, _get_task_or_404(conn, task_id))
 
-        if "list_id" in updates:
-            _get_list_or_404(conn, updates["list_id"])
+        if updates:
+            if "list_id" in updates:
+                _get_list_or_404(conn, updates["list_id"])
 
-        if "done" in updates:
-            updates["done"] = int(updates["done"])
+            if "done" in updates:
+                updates["done"] = int(updates["done"])
 
-        set_clause = ", ".join(f"{field} = ?" for field in updates)
-        params = [*updates.values(), _now(), task_id]
-        conn.execute(
-            f"UPDATE tasks SET {set_clause}, updated_at = ? WHERE id = ?", params
-        )
+            set_clause = ", ".join(f"{field} = ?" for field in updates)
+            params = [*updates.values(), _now(), task_id]
+            conn.execute(
+                f"UPDATE tasks SET {set_clause}, updated_at = ? WHERE id = ?", params
+            )
+
+        if tags_provided:
+            for tag_id in tag_ids:
+                _get_tag_or_404(conn, tag_id)
+            conn.execute("DELETE FROM task_tags WHERE task_id = ?", (task_id,))
+            conn.executemany(
+                "INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)",
+                [(task_id, tag_id) for tag_id in set(tag_ids)],
+            )
+
         conn.commit()
-        return dict(_get_task_or_404(conn, task_id))
+        return _serialize_task(conn, _get_task_or_404(conn, task_id))
     finally:
         conn.close()
 
@@ -259,6 +305,47 @@ def delete_task(task_id: int):
         _get_task_or_404(conn, task_id)
         conn.execute("DELETE FROM task_tags WHERE task_id = ?", (task_id,))
         conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    return None
+
+
+@app.get("/tags")
+def get_tags():
+    conn = get_connection()
+    try:
+        rows = conn.execute("SELECT id, name FROM tags ORDER BY name ASC").fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+@app.post("/tags", status_code=201)
+def create_tag(payload: TagCreate):
+    conn = get_connection()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM tags WHERE name = ?", (payload.name,)
+        ).fetchone()
+        if existing is not None:
+            raise HTTPException(
+                status_code=409, detail="A tag with this name already exists"
+            )
+        cursor = conn.execute("INSERT INTO tags (name) VALUES (?)", (payload.name,))
+        conn.commit()
+        return dict(_get_tag_or_404(conn, cursor.lastrowid))
+    finally:
+        conn.close()
+
+
+@app.delete("/tags/{tag_id}", status_code=204)
+def delete_tag(tag_id: int):
+    conn = get_connection()
+    try:
+        _get_tag_or_404(conn, tag_id)
+        conn.execute("DELETE FROM task_tags WHERE tag_id = ?", (tag_id,))
+        conn.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
         conn.commit()
     finally:
         conn.close()

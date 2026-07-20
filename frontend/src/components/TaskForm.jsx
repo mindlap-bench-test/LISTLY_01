@@ -2,13 +2,38 @@ import { useState } from "react";
 
 const PRIORITIES = ["low", "medium", "high"];
 
-export default function TaskForm({ lists, initialValues, initialListId, submitLabel, onSubmit, onCancel }) {
+export default function TaskForm({
+  lists,
+  tags,
+  initialValues,
+  initialListId,
+  submitLabel,
+  onSubmit,
+  onCancel,
+}) {
   const [title, setTitle] = useState(initialValues?.title ?? "");
   const [description, setDescription] = useState(initialValues?.description ?? "");
   const [dueDate, setDueDate] = useState(initialValues?.due_date ?? "");
   const [priority, setPriority] = useState(initialValues?.priority ?? "medium");
   const [listId, setListId] = useState(initialListId ?? "");
+  const [tagIds, setTagIds] = useState(
+    () => new Set((initialValues?.tags ?? []).map((tag) => tag.id))
+  );
   const [error, setError] = useState(null);
+
+  const isEditing = Boolean(initialValues);
+
+  function toggleTag(tagId) {
+    setTagIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(tagId)) {
+        next.delete(tagId);
+      } else {
+        next.add(tagId);
+      }
+      return next;
+    });
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -28,6 +53,7 @@ export default function TaskForm({ lists, initialValues, initialListId, submitLa
         due_date: dueDate || null,
         priority,
         list_id: Number(listId),
+        ...(isEditing ? { tags: Array.from(tagIds) } : {}),
       });
     } catch (err) {
       setError(err.message);
@@ -69,6 +95,20 @@ export default function TaskForm({ lists, initialValues, initialListId, submitLa
           ))}
         </select>
       </div>
+      {isEditing && tags?.length > 0 && (
+        <div className="task-form-tags">
+          {tags.map((tag) => (
+            <label key={tag.id} className="task-form-tag-option">
+              <input
+                type="checkbox"
+                checked={tagIds.has(tag.id)}
+                onChange={() => toggleTag(tag.id)}
+              />
+              {tag.name}
+            </label>
+          ))}
+        </div>
+      )}
       <div className="task-form-actions">
         <button type="submit">{submitLabel}</button>
         <button type="button" onClick={onCancel}>

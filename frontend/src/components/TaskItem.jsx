@@ -1,7 +1,7 @@
 import { useState } from "react";
 import TaskForm from "./TaskForm.jsx";
 
-export default function TaskItem({ task, lists, onToggleDone, onUpdate, onDelete }) {
+export default function TaskItem({ task, lists, tags, onToggleDone, onUpdate, onDelete }) {
   const [isEditing, setIsEditing] = useState(false);
 
   if (isEditing) {
@@ -9,6 +9,7 @@ export default function TaskItem({ task, lists, onToggleDone, onUpdate, onDelete
       <li className="task-item task-item-editing">
         <TaskForm
           lists={lists}
+          tags={tags}
           initialValues={task}
           initialListId={task.list_id}
           submitLabel="Save"
@@ -31,7 +32,15 @@ export default function TaskItem({ task, lists, onToggleDone, onUpdate, onDelete
         <span className={`task-item-priority task-item-priority-${task.priority}`}>
           {task.priority}
         </span>
-        <span className="tag-chip-placeholder">tag</span>
+        {task.tags?.length > 0 && (
+          <span className="task-item-tags">
+            {task.tags.map((tag) => (
+              <span key={tag.id} className="tag-chip">
+                {tag.name}
+              </span>
+            ))}
+          </span>
+        )}
       </div>
       <div className="task-item-actions">
         <button type="button" onClick={() => setIsEditing(true)}>

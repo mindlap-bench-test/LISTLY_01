@@ -3,7 +3,7 @@ import { createTask, deleteTask, fetchTasks, updateTask } from "../api.js";
 import TaskForm from "./TaskForm.jsx";
 import TaskItem from "./TaskItem.jsx";
 
-export default function TaskView({ selectedListId, lists, onTasksChanged }) {
+export default function TaskView({ selectedListId, lists, tags, onTasksChanged }) {
   const [tasks, setTasks] = useState([]);
   const [error, setError] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -20,7 +20,9 @@ export default function TaskView({ selectedListId, lists, onTasksChanged }) {
 
   useEffect(() => {
     loadTasks();
-  }, [loadTasks]);
+    // Re-fetch when the tag set changes so chips reflect a tag deletion
+    // that happened elsewhere in the app.
+  }, [loadTasks, tags]);
 
   function notifyChanged() {
     loadTasks();
@@ -80,6 +82,7 @@ export default function TaskView({ selectedListId, lists, onTasksChanged }) {
               key={task.id}
               task={task}
               lists={lists}
+              tags={tags}
               onToggleDone={() => handleToggleDone(task)}
               onUpdate={(values) => handleUpdate(task.id, values)}
               onDelete={() => handleDelete(task.id)}
