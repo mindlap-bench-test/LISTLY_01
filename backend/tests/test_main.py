@@ -257,6 +257,128 @@ def test_delete_task_cleans_up_task_tags(db_path):
     assert remaining == 0
 
 
+def test_get_tasks_filter_by_status_active(db_path):
+    inbox_id = _inbox_id()
+    open_task = main.create_task(main.TaskCreate(list_id=inbox_id, title="A"))
+    done_task = main.create_task(main.TaskCreate(list_id=inbox_id, title="B"))
+    main.update_task(done_task["id"], main.TaskUpdate(done=True))
+
+    tasks = main.get_tasks(status="active")
+    assert [t["id"] for t in tasks] == [open_task["id"]]
+
+
+def test_get_tasks_filter_by_status_completed(db_path):
+    inbox_id = _inbox_id()
+    main.create_task(main.TaskCreate(list_id=inbox_id, title="A"))
+    done_task = main.create_task(main.TaskCreate(list_id=inbox_id, title="B"))
+    main.update_task(done_task["id"], main.TaskUpdate(done=True))
+
+    tasks = main.get_tasks(status="completed")
+    assert [t["id"] for t in tasks] == [done_task["id"]]
+
+
+def test_get_tasks_filter_by_priority(db_path):
+    inbox_id = _inbox_id()
+    high = main.create_task(
+        main.TaskCreate(list_id=inbox_id, title="A", priority="high")
+    )
+    main.create_task(main.TaskCreate(list_id=inbox_id, title="B", priority="low"))
+
+    tasks = main.get_tasks(priority="high")
+    assert [t["id"] for t in tasks] == [high["id"]]
+
+
+def test_get_tasks_filter_by_tag(db_path):
+    inbox_id = _inbox_id()
+    tagged = main.create_task(main.TaskCreate(list_id=inbox_id, title="A"))
+    main.create_task(main.TaskCreate(list_id=inbox_id, title="B"))
+    urgent = main.create_tag(main.TagCreate(name="urgent"))
+    main.update_task(tagged["id"], main.TaskUpdate(tags=[urgent["id"]]))
+
+    tasks = main.get_tasks(tag=urgent["id"])
+    assert [t["id"] for t in tasks] == [tagged["id"]]
+
+
+def test_get_tasks_search_matches_title_or_description(db_path):
+    inbox_id = _inbox_id()
+    title_match = main.create_task(
+        main.TaskCreate(list_id=inbox_id, title="Buy milk")
+    )
+    description_match = main.create_task(
+        main.TaskCreate(list_id=inbox_id, title="Errand", description="milk run")
+    )
+    main.create_task(main.TaskCreate(list_id=inbox_id, title="Unrelated"))
+
+    tasks = main.get_tasks(q="milk")
+    assert {t["id"] for t in tasks} == {title_match["id"], description_match["id"]}
+
+
+def test_get_tasks_sort_by_due_date_nulls_last(db_path):
+    inbox_id = _inbox_id()
+    no_due = main.create_task(main.TaskCreate(list_id=inbox_id, title="A"))
+    later = main.create_task(
+        main.TaskCreate(list_id=inbox_id, title="B", due_date="2026-08-01")
+    )
+    sooner = main.create_task(
+        main.TaskCreate(list_id=inbox_id, title="C", due_date="2026-07-25")
+    )
+
+    tasks = main.get_tasks(sort="due_date")
+    assert [t["id"] for t in tasks] == [sooner["id"], later["id"], no_due["id"]]
+
+
+def test_get_tasks_sort_by_priority_high_first(db_path):
+    inbox_id = _inbox_id()
+    low = main.create_task(
+        main.TaskCreate(list_id=inbox_id, title="A", priority="low")
+    )
+    high = main.create_task(
+        main.TaskCreate(list_id=inbox_id, title="B", priority="high")
+    )
+    medium = main.create_task(
+        main.TaskCreate(list_id=inbox_id, title="C", priority="medium")
+    )
+
+    tasks = main.get_tasks(sort="priority")
+    assert [t["id"] for t in tasks] == [high["id"], medium["id"], low["id"]]
+
+
+def test_get_tasks_sort_keeps_completed_below_open(db_path):
+    inbox_id = _inbox_id()
+    done_high = main.create_task(
+        main.TaskCreate(list_id=inbox_id, title="A", priority="high")
+    )
+    open_low = main.create_task(
+        main.TaskCreate(list_id=inbox_id, title="B", priority="low")
+    )
+    main.update_task(done_high["id"], main.TaskUpdate(done=True))
+
+    tasks = main.get_tasks(sort="priority")
+    assert [t["id"] for t in tasks] == [open_low["id"], done_high["id"]]
+
+
+def test_get_tasks_combined_filters(db_path):
+    inbox_id = _inbox_id()
+    other_list = main.create_list(main.ListCreate(name="Work"))
+    urgent = main.create_tag(main.TagCreate(name="urgent"))
+    match = main.create_task(
+        main.TaskCreate(
+            list_id=inbox_id, title="Buy milk", priority="high"
+        )
+    )
+    main.update_task(match["id"], main.TaskUpdate(tags=[urgent["id"]]))
+    # Same tag/priority/search term but in a different list - should be excluded.
+    other_list_task = main.create_task(
+        main.TaskCreate(list_id=other_list["id"], title="Buy milk", priority="high")
+    )
+    main.update_task(other_list_task["id"], main.TaskUpdate(tags=[urgent["id"]]))
+
+    tasks = main.get_tasks(
+        list_id=inbox_id, status="active", priority="high", tag=urgent["id"], q="milk"
+    )
+    assert [t["id"] for t in tasks] == [match["id"]]
+
+
 def test_update_task_fields_without_touching_tags(db_path):
     inbox_id = _inbox_id()
     task = main.create_task(main.TaskCreate(list_id=inbox_id, title="Buy milk"))

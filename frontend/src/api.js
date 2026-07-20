@@ -38,9 +38,16 @@ export function deleteList(listId) {
   return request(`/lists/${listId}`, { method: "DELETE" });
 }
 
-export function fetchTasks(listId) {
-  const query = listId != null ? `?list_id=${listId}` : "";
-  return request(`/tasks${query}`);
+export function fetchTasks(listId, filters = {}) {
+  const params = new URLSearchParams();
+  if (listId != null) params.set("list_id", listId);
+  if (filters.status && filters.status !== "all") params.set("status", filters.status);
+  if (filters.priority) params.set("priority", filters.priority);
+  if (filters.tag != null) params.set("tag", filters.tag);
+  if (filters.q) params.set("q", filters.q);
+  if (filters.sort) params.set("sort", filters.sort);
+  const query = params.toString();
+  return request(`/tasks${query ? `?${query}` : ""}`);
 }
 
 export function createTask(values) {

@@ -90,6 +90,18 @@ body {
   align-items: center;
 }
 
+.task-filter-bar {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.task-filter-search {
+  flex: 1;
+  min-width: 160px;
+}
+
 .task-view-placeholder {
   color: #888;
 }
@@ -115,6 +127,19 @@ body {
 .task-item-done .task-item-title {
   text-decoration: line-through;
   color: #999;
+}
+
+.task-item-overdue {
+  background: #fff5f5;
+  border-left: 3px solid #c00;
+}
+
+.task-item-overdue-badge {
+  margin-left: 6px;
+  color: #c00;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
 }
 
 .task-item-body {
@@ -169,6 +194,16 @@ body {
   border-radius: 999px;
   background: #eef2ff;
   color: #3730a3;
+}
+
+.tag-chip-clickable {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.tag-chip-clickable:hover {
+  background: #dbe4ff;
 }
 
 .task-item-actions {

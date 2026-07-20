@@ -1,7 +1,7 @@
 """FastAPI app for Listly.
 
-Full Lists and Tasks CRUD, plus Tag CRUD and task/tag attachment, per PRD
-section 6. Search/filter/sort are out of scope for this story.
+Full Lists and Tasks CRUD, Tag CRUD and task/tag attachment, and
+search/filter/sort over tasks, per PRD section 6.
 """
 
 from contextlib import asynccontextmanager
@@ -64,6 +64,16 @@ class TagCreate(BaseModel):
 # Fields on Task that are NOT NULL in the schema; explicitly clearing them
 # to null is rejected rather than left to fail as a raw sqlite3 error.
 _REQUIRED_TASK_FIELDS = {"title", "priority", "list_id"}
+
+# ORDER BY expressions for each supported `sort` value, applied within the
+# done/not-done split so completed tasks always sort below open ones
+# (per story #5) regardless of the chosen sort.
+_TASK_SORT_EXPRESSIONS = {
+    "due_date": "(due_date IS NULL) ASC, due_date ASC",
+    "priority": "CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END ASC",
+    "created_date": "created_at ASC",
+}
+_DEFAULT_TASK_SORT_EXPRESSION = "created_at ASC"
 
 
 def _now() -> str:
@@ -198,19 +208,43 @@ def delete_list(list_id: int):
 
 
 @app.get("/tasks")
-def get_tasks(list_id: Optional[int] = None):
+def get_tasks(
+    list_id: Optional[int] = None,
+    status: Optional[Literal["all", "active", "completed"]] = None,
+    priority: Optional[Literal["low", "medium", "high"]] = None,
+    tag: Optional[int] = None,
+    q: Optional[str] = None,
+    sort: Optional[Literal["due_date", "priority", "created_date"]] = None,
+):
     conn = get_connection()
     try:
+        clauses = []
+        params = []
+
         if list_id is not None:
-            rows = conn.execute(
-                "SELECT * FROM tasks WHERE list_id = ? "
-                "ORDER BY done ASC, created_at ASC, id ASC",
-                (list_id,),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM tasks ORDER BY done ASC, created_at ASC, id ASC"
-            ).fetchall()
+            clauses.append("list_id = ?")
+            params.append(list_id)
+        if status == "active":
+            clauses.append("done = 0")
+        elif status == "completed":
+            clauses.append("done = 1")
+        if priority is not None:
+            clauses.append("priority = ?")
+            params.append(priority)
+        if tag is not None:
+            clauses.append("id IN (SELECT task_id FROM task_tags WHERE tag_id = ?)")
+            params.append(tag)
+        if q:
+            clauses.append("(title LIKE ? OR description LIKE ?)")
+            pattern = f"%{q}%"
+            params.extend([pattern, pattern])
+
+        where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        order_sql = _TASK_SORT_EXPRESSIONS.get(sort, _DEFAULT_TASK_SORT_EXPRESSION)
+        rows = conn.execute(
+            f"SELECT * FROM tasks {where_sql} ORDER BY done ASC, {order_sql}, id ASC",
+            params,
+        ).fetchall()
         return [_serialize_task(conn, row) for row in rows]
     finally:
         conn.close()
