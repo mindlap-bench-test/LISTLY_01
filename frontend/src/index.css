@@ -47,6 +47,32 @@ body {
   font-size: 12px;
 }
 
+.sidebar-item-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.sidebar-item-actions button {
+  font-size: 11px;
+}
+
+.sidebar-rename-form {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.sidebar-create-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.sidebar-create-form input {
+  flex: 1;
+  min-width: 0;
+}
+
 .sidebar-error {
   color: #c00;
   font-size: 12px;
@@ -55,8 +81,117 @@ body {
 .task-view {
   flex: 1;
   padding: 24px;
+  overflow-y: auto;
+}
+
+.task-view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .task-view-placeholder {
   color: #888;
+}
+
+.task-view-error {
+  color: #c00;
+}
+
+.task-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+
+.task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.task-item-done .task-item-title {
+  text-decoration: line-through;
+  color: #999;
+}
+
+.task-item-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.task-item-title {
+  font-weight: 500;
+}
+
+.task-item-due {
+  color: #666;
+  font-size: 12px;
+}
+
+.task-item-priority {
+  font-size: 11px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #f0f0f0;
+  color: #555;
+}
+
+.task-item-priority-high {
+  background: #fde2e2;
+  color: #a4222c;
+}
+
+.task-item-priority-medium {
+  background: #fef3c7;
+  color: #92620a;
+}
+
+.task-item-priority-low {
+  background: #e2f0e2;
+  color: #2a6b2a;
+}
+
+.tag-chip-placeholder {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px dashed #ccc;
+  color: #aaa;
+}
+
+.task-item-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.task-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+.task-form-row {
+  display: flex;
+  gap: 8px;
+}
+
+.task-form-error {
+  color: #c00;
+  font-size: 12px;
+  margin: 0;
+}
+
+.task-form-actions {
+  display: flex;
+  gap: 8px;
 }
