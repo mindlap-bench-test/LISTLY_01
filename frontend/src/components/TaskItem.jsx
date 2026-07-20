@@ -1,7 +1,16 @@
 import { useState } from "react";
 import TaskForm from "./TaskForm.jsx";
+import { isOverdue } from "../utils.js";
 
-export default function TaskItem({ task, lists, tags, onToggleDone, onUpdate, onDelete }) {
+export default function TaskItem({
+  task,
+  lists,
+  tags,
+  onToggleDone,
+  onUpdate,
+  onDelete,
+  onTagClick,
+}) {
   const [isEditing, setIsEditing] = useState(false);
 
   if (isEditing) {
@@ -23,21 +32,33 @@ export default function TaskItem({ task, lists, tags, onToggleDone, onUpdate, on
     );
   }
 
+  const overdue = isOverdue(task);
+
   return (
-    <li className={`task-item${task.done ? " task-item-done" : ""}`}>
+    <li className={`task-item${task.done ? " task-item-done" : ""}${overdue ? " task-item-overdue" : ""}`}>
       <input type="checkbox" checked={!!task.done} onChange={onToggleDone} />
       <div className="task-item-body">
         <span className="task-item-title">{task.title}</span>
-        {task.due_date && <span className="task-item-due">{task.due_date}</span>}
+        {task.due_date && (
+          <span className="task-item-due">
+            {task.due_date}
+            {overdue && <span className="task-item-overdue-badge">Overdue</span>}
+          </span>
+        )}
         <span className={`task-item-priority task-item-priority-${task.priority}`}>
           {task.priority}
         </span>
         {task.tags?.length > 0 && (
           <span className="task-item-tags">
             {task.tags.map((tag) => (
-              <span key={tag.id} className="tag-chip">
+              <button
+                key={tag.id}
+                type="button"
+                className="tag-chip tag-chip-clickable"
+                onClick={() => onTagClick?.(tag.id)}
+              >
                 {tag.name}
-              </span>
+              </button>
             ))}
           </span>
         )}

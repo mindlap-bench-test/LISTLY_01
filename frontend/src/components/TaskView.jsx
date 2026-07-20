@@ -1,22 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
 import { createTask, deleteTask, fetchTasks, updateTask } from "../api.js";
+import TaskFilterBar from "./TaskFilterBar.jsx";
 import TaskForm from "./TaskForm.jsx";
 import TaskItem from "./TaskItem.jsx";
+
+const DEFAULT_FILTERS = { status: "all", priority: "", tag: null, q: "", sort: "" };
 
 export default function TaskView({ selectedListId, lists, tags, onTasksChanged }) {
   const [tasks, setTasks] = useState([]);
   const [error, setError] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
 
   const loadTasks = useCallback(() => {
     const listId = selectedListId === "all" ? null : selectedListId;
-    fetchTasks(listId)
+    fetchTasks(listId, filters)
       .then((data) => {
         setTasks(data);
         setError(null);
       })
       .catch((err) => setError(err.message));
-  }, [selectedListId]);
+  }, [selectedListId, filters]);
 
   useEffect(() => {
     loadTasks();
@@ -50,8 +54,18 @@ export default function TaskView({ selectedListId, lists, tags, onTasksChanged }
     notifyChanged();
   }
 
+  function handleTagClick(tagId) {
+    setFilters((prev) => ({ ...prev, tag: prev.tag === tagId ? null : tagId }));
+  }
+
   const currentList = selectedListId === "all" ? null : lists.find((l) => l.id === selectedListId);
   const defaultListId = selectedListId === "all" ? lists[0]?.id : selectedListId;
+  const filtersActive =
+    filters.status !== DEFAULT_FILTERS.status ||
+    filters.priority !== DEFAULT_FILTERS.priority ||
+    filters.tag !== DEFAULT_FILTERS.tag ||
+    filters.q !== DEFAULT_FILTERS.q ||
+    filters.sort !== DEFAULT_FILTERS.sort;
 
   return (
     <main className="task-view">
@@ -63,6 +77,7 @@ export default function TaskView({ selectedListId, lists, tags, onTasksChanged }
           </button>
         )}
       </div>
+      <TaskFilterBar filters={filters} onFiltersChange={setFilters} tags={tags} />
       {error && <p className="task-view-error">{error}</p>}
       {showCreateForm && (
         <TaskForm
@@ -74,7 +89,9 @@ export default function TaskView({ selectedListId, lists, tags, onTasksChanged }
         />
       )}
       {tasks.length === 0 ? (
-        <p className="task-view-placeholder">No tasks yet.</p>
+        <p className="task-view-placeholder">
+          {filtersActive ? "No tasks match your search and filters." : "No tasks yet."}
+        </p>
       ) : (
         <ul className="task-list">
           {tasks.map((task) => (
@@ -86,6 +103,7 @@ export default function TaskView({ selectedListId, lists, tags, onTasksChanged }
               onToggleDone={() => handleToggleDone(task)}
               onUpdate={(values) => handleUpdate(task.id, values)}
               onDelete={() => handleDelete(task.id)}
+              onTagClick={handleTagClick}
             />
           ))}
         </ul>
