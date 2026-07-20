@@ -1,0 +1,62 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+}
+
+.app-shell {
+  display: flex;
+  height: 100vh;
+}
+
+.sidebar {
+  width: 240px;
+  border-right: 1px solid #ddd;
+  padding: 16px;
+}
+
+.sidebar-title {
+  font-size: 14px;
+  text-transform: uppercase;
+  color: #666;
+}
+
+.sidebar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sidebar-item.selected {
+  background: #eef2ff;
+}
+
+.sidebar-item-count {
+  color: #888;
+  font-size: 12px;
+}
+
+.sidebar-error {
+  color: #c00;
+  font-size: 12px;
+}
+
+.task-view {
+  flex: 1;
+  padding: 24px;
+}
+
+.task-view-placeholder {
+  color: #888;
+}
